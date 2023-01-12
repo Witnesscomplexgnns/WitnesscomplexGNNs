@@ -7,7 +7,7 @@ from deeprobust.graph.data import Dataset
 import scipy.sparse as sp
 import argparse
 from utils import load_npz
-import gudhi as gd
+#import gudhi as gd
 import json
 
 parser = argparse.ArgumentParser()
@@ -18,6 +18,7 @@ parser.add_argument('--drop_rate', type=float, default=0.5,  help='dropout rate'
 parser.add_argument('--weight_decay', type=float, default=5e-4,  help='weight decay rate')
 parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
 parser.add_argument('--epoch', type=float, default=500,  help='epochs')
+parser.add_argument('--topo', type=str,default = 'witptb',help='witorig/witptb/vrorig/vrptb')
 
 args = parser.parse_args()
 args.cuda = torch.cuda.is_available()
@@ -27,7 +28,7 @@ adj, features, labels = load_npz('data/' + args.dataset + '/' + args.dataset + '
 f = open('data/' + args.dataset + '/' + args.dataset + '_prognn_splits.json')
 idx = json.load(f)
 idx_train, idx_val, idx_test = np.array(idx['idx_train']), np.array(idx['idx_val']), np.array(idx['idx_test'])
-perturbed_adj = sp.load_npz('data/' + args.dataset + '/' + args.dataset + '_meta_adj_0.05.npz')
+perturbed_adj = sp.load_npz('data/' + args.dataset + '/' + args.dataset + '_meta_adj_'+str(args.ptb_rate)+'.npz')
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -36,7 +37,10 @@ if args.cuda:
 
 # Setup WitCompNN Model
 # load witness complex topological features
-witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_PI' + '.npz', allow_pickle=True)['arr_0'])
+if args.topo == 'witorig':
+    witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_PI' + '.npz', allow_pickle=True)['arr_0'])
+if args.topo == 'witptb':
+    witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
 
 model = WitCompNN(nfeat=features.shape[1], nhid=16, nclass=int(labels.max())+1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device)
 model = model.to(device)
