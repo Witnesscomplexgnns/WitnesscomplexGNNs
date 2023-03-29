@@ -7,7 +7,7 @@ from deeprobust.graph.data import Dataset
 import scipy.sparse as sp
 import argparse
 from utils import load_npz
-import gudhi as gd
+# import gudhi as gd
 import json
 
 parser = argparse.ArgumentParser()
@@ -20,6 +20,7 @@ parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation r
 parser.add_argument('--epoch', type=float, default=500,  help='epochs')
 
 args = parser.parse_args()
+print(args)
 args.cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # load original data and attacked data
@@ -27,7 +28,7 @@ adj, features, labels = load_npz('data/' + args.dataset + '/' + args.dataset + '
 f = open('data/' + args.dataset + '/' + args.dataset + '_prognn_splits.json')
 idx = json.load(f)
 idx_train, idx_val, idx_test = np.array(idx['idx_train']), np.array(idx['idx_val']), np.array(idx['idx_test'])
-perturbed_adj = sp.load_npz('data/' + args.dataset + '/' + args.dataset + '_meta_adj_0.05.npz')
+perturbed_adj = sp.load_npz('data/' + args.dataset + '/' + args.dataset + '_meta_adj_'+str(args.ptb_rate)+'.npz')
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)

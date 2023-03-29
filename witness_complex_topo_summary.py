@@ -14,7 +14,12 @@ from persistence_image import persistence_image
 from torch_geometric.utils import to_networkx
 from utils import load_npz
 from lazywitness import * 
+import argparse 
+import scipy.sparse as sp
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
+args = parser.parse_args()
 
 def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 	"""
@@ -40,10 +45,12 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 
 # load dataset
 dataset_name = 'cora'
-adj, _, _ = load_npz('data/' + dataset_name + '/' + dataset_name + '.npz')
-G = nx.from_numpy_matrix(adj.toarray()[:100, :100])
-PD = computeLWfeatures(G,dataset_name,landmarkPerc=0.25,heuristic = 'random')
+perturbed_adj = sp.load_npz('data/' + dataset_name + '/' + dataset_name + '_meta_adj_'+str(args.ptb_rate)+'.npz')
+# adj, _, _ = load_npz('data/' + dataset_name + '/' + dataset_name + '.npz')
+# G = nx.from_numpy_matrix(adj.toarray()[:100, :100]) # G is a sub-matrix of the input Adj matrix of CORA
+G = nx.from_numpy_matrix(perturbed_adj.toarray()[:100, :100])
+PD = computeLWfeatures(G, 'data/' + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate), landmarkPerc=0.25, heuristic = 'random')
 resolution_size = 100
 PI = persistence_image(PD, resolution = [resolution_size, resolution_size])
 PI = PI.reshape(1, resolution_size, resolution_size)
-np.savez_compressed('data/' + dataset_name + '/' + dataset_name + '_PI.npz', PI)
+np.savez_compressed('data/' + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate) + '_PI.npz', PI)
