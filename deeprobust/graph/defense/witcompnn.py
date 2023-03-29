@@ -140,9 +140,9 @@ class WitCompNN(nn.Module):
             adj_norm = adj
 
         self.adj_norm = adj_norm
-        self.features = features
+        self.features = features.to(self.device)
         self.labels = labels
-        self.witness_complex_feat = witness_complex_feat
+        self.witness_complex_feat = witness_complex_feat.to(self.device)
 
         if idx_val is None:
             self._train_without_val(labels, idx_train, train_iters, verbose)
@@ -157,7 +157,7 @@ class WitCompNN(nn.Module):
         optimizer = optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         for i in range(train_iters):
             optimizer.zero_grad()
-            output = self.forward(self.features, self.adj_norm, self.witness_complex_feat)
+            output = self.forward(self.features.to(self.device), self.adj_norm, self.witness_complex_feat.to(self.device))
             loss_train = F.nll_loss(output[idx_train], labels[idx_train])
             loss_train.backward()
             optimizer.step()
@@ -165,7 +165,7 @@ class WitCompNN(nn.Module):
                 print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
 
         self.eval()
-        output = self.forward(self.features, self.adj_norm, self.witness_complex_feat)
+        output = self.forward(self.features.to(self.device), self.adj_norm, self.witness_complex_feat.to(self.device))
         self.output = output
 
     def _train_with_val(self, labels, idx_train, idx_val, train_iters, verbose):
