@@ -35,7 +35,7 @@ torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
-# Setup WitCompNN Model
+# Setup WitCompNN Model        
 # load witness complex topological features
 if args.topo == 'witorig':
     witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_PI' + '.npz', allow_pickle=True)['arr_0'])
