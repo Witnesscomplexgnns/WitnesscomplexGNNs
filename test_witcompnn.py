@@ -18,7 +18,7 @@ parser.add_argument('--drop_rate', type=float, default=0.5,  help='dropout rate'
 parser.add_argument('--weight_decay', type=float, default=5e-4,  help='weight decay rate')
 parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
 parser.add_argument('--epoch', type=float, default=500,  help='epochs')
-parser.add_argument('--topo', type=str,default = 'witptb',help='witorig/witptb/vrorig/vrptb')
+parser.add_argument('--topo', type=str,default = 'witptb',help='witorig/witptb/witptb_local/vrorig/vrptb')
 
 args = parser.parse_args()
 args.cuda = torch.cuda.is_available()
@@ -44,9 +44,11 @@ if args.topo == 'witptb':
     witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
 
 if args.topo == 'witptb_local':
-    local_witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
+    local_witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_localPI' + '.npz', allow_pickle=True)['arr_0'])
+    print('shape of local PI representation: ',local_witness_complex_feat.shape)
     # local_witness_complex_feat => Shape (#nodes x 50 x 50)
-
+import sys
+sys.exit(1)
 model = WitCompNN(nfeat=features.shape[1], nhid=16, nclass=int(labels.max())+1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device)
 model = model.to(device)
 model.fit(features, perturbed_adj, witness_complex_feat, labels, idx_train, train_iters=args.epoch, verbose=True)
