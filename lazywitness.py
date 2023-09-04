@@ -8,47 +8,148 @@ import networkx as nx
 import random 
 import math
 
+# def get_distancetocover(G, nodes,_L,debug = True):
+#     dist_to_cover = {}
+#     cover = {}
+#     for u in _L:
+#         dist_to_cover[u] = 0
+#     for u in nodes:
+#         # if u=='3':
+#         #     debug = True
+#         # else:
+#         #     debug = False
+#         if u in dist_to_cover:
+#             if (debug):
+#                 print(u,' previously added to dist_to_cover')
+#             continue
+#         Queue = [u]
+#         dist = {u: 0}
+#         breakflag = False
+#         parent = {u:u}
+#         while len(Queue):
+#             v = Queue.pop(0)
+#             if (debug):
+#                 print('pop ',v)
+#             for nbr_v in G.neighbors(v):
+#                 dist_nv = dist[v] + 1
+#                 if (debug):
+#                     print('nbr: ',nbr_v,' dist_nv: ',dist_nv)
+#                 if dist.get(nbr_v, math.inf) > dist_nv:
+#                     parent[nbr_v] = parent[v]
+#                     if (debug):
+#                         print('condition check: ',dist.get(nbr_v, math.inf))
+#                     dist[nbr_v] = dist_nv
+#                     # cover[nbr_v] = v
+#                     if nbr_v in _L: # The first time BFS encounters a landmark, that landmark contains it in its cover.
+#                         if (debug):
+#                             print('nbr_v ',nbr_v,' in _L')
+#                         dist_to_cover[u] = dist[nbr_v]
+#                         cover[nbr_v] = cover.get(nbr_v,[])+[u]
+#                         breakflag = True
+#                         # break
+#                     else:
+#                         Queue.append(nbr_v)
+#             if breakflag:
+#                 break
+#         if breakflag is False: # distance to nearest neighbor in L is infinity, because disconnected.
+#             dist_to_cover[u] = math.inf
+
+#     print('cover => \n',cover)
+#     return dist_to_cover, cover
+
+
 def get_distancetocover(G, nodes,_L,debug = False):
     dist_to_cover = {}
+    cover = {}
+    # parent = {}
+    front = {}
+    visited = {}
+    for u in nodes:
+        # parent[u] = u 
+        visited[u] = False 
     for u in _L:
         dist_to_cover[u] = 0
-    for u in nodes:
-        # if u=='3':
-        #     debug = True
-        # else:
-        #     debug = False
-        if u in dist_to_cover:
-            if (debug):
-                print(u,' previously added to dist_to_cover')
-            continue
-        Queue = [u]
-        dist = {u: 0}
-        breakflag = False
-        while len(Queue):
-            v = Queue.pop(0)
-            if (debug):
-                print('pop ',v)
-            for nbr_v in G.neighbors(v):
-                dist_nv = dist[v] + 1
-                if (debug):
-                    print('nbr: ',nbr_v,' dist_nv: ',dist_nv)
-                if dist.get(nbr_v, math.inf) > dist_nv:
-                    if (debug):
-                        print('condition check: ',dist.get(nbr_v, math.inf))
-                    dist[nbr_v] = dist_nv
-                    if nbr_v in _L:
-                        if (debug):
-                            print('nbr_v ',nbr_v,' in _L')
-                        dist_to_cover[u] = dist[nbr_v]
-                        breakflag = True
-                        break
+        cover[u] = [u]
+        front[u] = []
+        for v in G.neighbors(u):
+            if not visited[v]:
+                visited[v] = True 
+                front[u].append(v)
+                cover[u].append(v)
+                dist_to_cover[v] = 1
+                # parent[v] = u
+ 
+    while True:
+        some_front_nonempty = False 
+        for u in _L:
+            temp_front = []
+            some_front_nonempty = (len(front[u])>0)
+            while len(front[u]):
+                v = front[u].pop(0)
+                for w in G.neighbors(v):
+                    dist_to_cover_w = dist_to_cover[v] + 1
+                    if w not in dist_to_cover:
+                        dist_to_cover[w] = dist_to_cover_w
+                        # parent[w] = parent[v]
+                        cover[u].append(w)
+                        temp_front.append(w)
                     else:
-                        Queue.append(nbr_v)
-            if breakflag:
-                break
-        if breakflag is False: # distance to nearest neighbor in L is infinity, because disconnected.
-            dist_to_cover[u] = math.inf
-    return dist_to_cover
+                        if dist_to_cover_w < dist_to_cover[w]:
+                            cover[u].append(w)
+                            # parent[w] = parent[v]
+                            dist_to_cover[w] = dist_to_cover_w
+                            temp_front.append(w)
+            front[u] = temp_front 
+        if some_front_nonempty is False:
+            break 
+    if len(dist_to_cover) != len(nodes):
+        for u in nodes:
+            if u not in dist_to_cover:
+                dist_to_cover[u] = math.inf 
+    
+    # for u in nodes:
+    #     # if u=='3':
+    #     #     debug = True
+    #     # else:
+    #     #     debug = False
+    #     if u in dist_to_cover:
+    #         if (debug):
+    #             print(u,' previously added to dist_to_cover')
+    #         continue
+    #     Queue = [u]
+    #     dist = {u: 0}
+    #     breakflag = False
+    #     parent = {u:u}
+    #     while len(Queue):
+    #         v = Queue.pop(0)
+    #         if (debug):
+    #             print('pop ',v)
+    #         for nbr_v in G.neighbors(v):
+    #             dist_nv = dist[v] + 1
+    #             if (debug):
+    #                 print('nbr: ',nbr_v,' dist_nv: ',dist_nv)
+    #             if dist.get(nbr_v, math.inf) > dist_nv:
+    #                 parent[nbr_v] = parent[v]
+    #                 if (debug):
+    #                     print('condition check: ',dist.get(nbr_v, math.inf))
+    #                 dist[nbr_v] = dist_nv
+    #                 # cover[nbr_v] = v
+    #                 if nbr_v in _L: # The first time BFS encounters a landmark, that landmark contains it in its cover.
+    #                     if (debug):
+    #                         print('nbr_v ',nbr_v,' in _L')
+    #                     dist_to_cover[u] = dist[nbr_v]
+    #                     cover[nbr_v] = cover.get(nbr_v,[])+[u]
+    #                     breakflag = True
+    #                     # break
+    #                 else:
+    #                     Queue.append(nbr_v)
+    #         if breakflag:
+    #             break
+    #     if breakflag is False: # distance to nearest neighbor in L is infinity, because disconnected.
+    #         dist_to_cover[u] = math.inf
+
+    if debug: print('cover => \n',cover)
+    return dist_to_cover, cover
 
 def getLandmarksbynumL(G, L = 2, heuristic = 'degree'):
     """ dist_nearest_nbr_inL[u] is the distance from u to its nearest nbr in L"""
@@ -56,13 +157,13 @@ def getLandmarksbynumL(G, L = 2, heuristic = 'degree'):
         _degreenodes = sorted([(G.degree[u],u) for u in G.nodes],reverse = True)
         _L = set([pair[1] for pair in _degreenodes[:L]])
         del _degreenodes
-        dist_to_cover = get_distancetocover(G, G.nodes,_L)
-        return _L, dist_to_cover
+        dist_to_cover,cover = get_distancetocover(G, G.nodes,_L)
+        return _L, dist_to_cover,cover
         
     if heuristic == 'random':
         _L = random.sample(G.nodes, k=L)
         dist_to_cover = get_distancetocover(G, G.nodes,_L)
-        return _L, dist_to_cover
+        return _L, dist_to_cover,cover
     
         
 def getLandmarksbyeps(G, epsilon = 2, heuristic = 'epsmaxmin'):
@@ -110,7 +211,7 @@ def get_sparse_matrix(G,dist_to_cover,landmarks):
         for j,v in enumerate(landmarks):
             if i<j:
                 e_ij = math.inf
-                for n in G.nodes:
+                for n in G.nodes: # witness node = n
                     # print(u,v,n)
                     dist_i = all_pairSP_len[u].get(n,math.inf)
                     dist_j = all_pairSP_len[v].get(n,math.inf)

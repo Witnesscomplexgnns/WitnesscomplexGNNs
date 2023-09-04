@@ -39,8 +39,13 @@ if args.cuda:
 # load witness complex topological features
 if args.topo == 'witorig':
     witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_PI' + '.npz', allow_pickle=True)['arr_0'])
+
 if args.topo == 'witptb':
     witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
+
+if args.topo == 'witptb_local':
+    local_witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
+    # local_witness_complex_feat => Shape (#nodes x 50 x 50)
 
 model = WitCompNN(nfeat=features.shape[1], nhid=16, nclass=int(labels.max())+1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device)
 model = model.to(device)

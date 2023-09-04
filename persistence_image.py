@@ -11,6 +11,8 @@ path = os.getcwd()
 # persistence image
 def persistence_image(dgm, resolution = [50,50], return_raw = False, normalization = True, bandwidth = 1., power = 1., dimensional = 0):
     PXs, PYs = dgm[:, 0:1], dgm[:, 1:2] #np.vstack([dgm[:, 0:1] for dgm in dgms]), np.vstack([dgm[:, 1:2] for dgm in dgms])
+    if len(PXs) == 0 and len(PYs) == 0:
+        return np.ones(resolution)*(10**-8)
     xm, xM, ym, yM = PXs.min(), PXs.max(), PYs.min(), PYs.max()
     x = np.linspace(xm, xM, resolution[0])
     y = np.linspace(ym, yM, resolution[1])
