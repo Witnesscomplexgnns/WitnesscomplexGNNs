@@ -53,12 +53,16 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 			PD = resultsparse['dgms'][0] # H0
 			PI = persistence_image(PD, resolution = [args.resolution, args.resolution]).reshape(1, args.resolution, args.resolution)
 			# print('local_pd: ',len(local_pd),' ',u)
+			# print(u,' has Nan: ',np.isnan(PI).any())
+			if np.isnan(PI).any():
+				PI = np.ones((1,args.resolution,args.resolution))*(10**-8) 
 			local_pd[u] = PI 
 			for v in cv:
 				local_pd[v] = PI # copy topological features of landmarks to the witnesses
 		for i,_ in enumerate(local_pd):
 			if local_pd[i] is None:
 				local_pd[i] = np.ones((1,args.resolution,args.resolution))*(10**-8) 
+				# print('local_pd is none for node : ',i)
 			# print(local_pd[i].shape)
 		DSparse,INF = get_sparse_matrix(G,dist_to_cover,landmarks) # Construct sparse LxL matrix
 		resultsparse = ripser(DSparse, distance_matrix=True)
