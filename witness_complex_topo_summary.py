@@ -19,7 +19,7 @@ import scipy.sparse as sp
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
-parser.add_argument('--lm_perc',type=float,default=0.25,help='%nodes as landmarks')
+parser.add_argument('--lm_perc',type=float,default=0.05,help='%nodes as landmarks')
 parser.add_argument('--resolution',type = int, default = 50, help='resolution of PI')
 args = parser.parse_args()
 
@@ -36,6 +36,7 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 	else:	
 		L = int(len(G.nodes)*landmarkPerc) # Take top 25% maximal degree nodes as landmarks
 		landmarks,dist_to_cover,cover = getLandmarksbynumL(G, L = L,heuristic=heuristic)
+		# print('len(landmarks) : ',len(landmarks),'\n\r landmark degrees: ',[(u,G.degree(u)) for u in landmarks])
 		local_pd = [None]*len(G.nodes)
 		for u in cover:
 			G_cv = nx.Graph()
@@ -55,7 +56,7 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 			# print('local_pd: ',len(local_pd),' ',u)
 			# print(u,' has Nan: ',np.isnan(PI).any())
 			if np.isnan(PI).any():
-				PI = np.ones((1,args.resolution,args.resolution))*(10**-8) 
+				PI[np.isnan(PI)] = 10**-8 
 			local_pd[u] = PI 
 			for v in cv:
 				local_pd[v] = PI # copy topological features of landmarks to the witnesses
@@ -68,7 +69,7 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 		resultsparse = ripser(DSparse, distance_matrix=True)
 		resultsparse['dgms'][0][resultsparse['dgms'][0] == math.inf] = INF # Replacing INFINITY death with a finite number.
 		PD = resultsparse['dgms'][0] # H0
-		
+		# print('Global PD: ',PD)
 		with open(dataset_name+'.pd.pkl','wb') as f:
 			pickle.dump(PD,f)
 		# with open(dataset_name+'_local.pi.npz','wb') as f:
@@ -89,5 +90,6 @@ dataset_name2 = 'data/' + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rat
 PD = computeLWfeatures(G,dataset_name2, landmarkPerc=args.lm_perc, heuristic = 'degree')
 # resolution_size = 50
 PI = persistence_image(PD, resolution = [args.resolution, args.resolution])
+PI[np.isnan(PI)] = 10**-8
 PI = PI.reshape(1, args.resolution, args.resolution)
 np.savez_compressed('data/' + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate) + '_PI.npz', PI)

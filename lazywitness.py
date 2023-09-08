@@ -157,6 +157,7 @@ def getLandmarksbynumL(G, L = 2, heuristic = 'degree'):
         _degreenodes = sorted([(G.degree[u],u) for u in G.nodes],reverse = True)
         _L = set([pair[1] for pair in _degreenodes[:L]])
         del _degreenodes
+        # print('L = ',L,' len(_L) = ',len(_L))
         dist_to_cover,cover = get_distancetocover(G, G.nodes,_L)
         return _L, dist_to_cover,cover
         
