@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import torch.nn.functional as F
-from deeprobust.graph.defense import GCN, GWitCompNN, LWitCompNN, LWitCompNN_V1, LWitCompNN_V2, LWitCompNN_V3
+from deeprobust.graph.defense import GCN, GWitCompNN, LWitCompNN_V1, LWitCompNN_V2, LWitCompNN_V3
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 import scipy.sparse as sp
@@ -17,10 +17,12 @@ parser.add_argument('--lr', type=float, default=0.01,  help='learning rate')
 parser.add_argument('--drop_rate', type=float, default=0.5,  help='dropout rate')
 parser.add_argument('--weight_decay', type=float, default=5e-4,  help='weight decay rate')
 parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
-parser.add_argument('--epoch', type=float, default=500,  help='epochs')
+parser.add_argument('--epoch', type=int, default=500,  help='epochs')
 parser.add_argument('--alpha', type=float, default=0.3,  help='alpha')
 parser.add_argument('--beta', type=float, default=0.7,  help='beta')
-parser.add_argument('--topo', type=str,default = 'witptb_local',help='witorig/witptb/witptb_local/vrorig/vrptb')
+# parser.add_argument('--topo', type=str,default = 'witptb_local',help='witorig/witptb/witptb_local/vrorig/vrptb')
+parser.add_argument('--topo', type=str,default = 'local',help='local/global')
+parser.add_argument('--method',type=str,default='transformer',help='transformer/resnet/cnn')
 
 args = parser.parse_args()
 args.cuda = torch.cuda.is_available()
@@ -39,23 +41,28 @@ if args.cuda:
 
 # Setup WitCompNN Model        
 # load witness complex topological features
-if args.topo == 'witorig':
-    witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_PI' + '.npz', allow_pickle=True)['arr_0'])
+# if args.topo == 'witorig':
+#     witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_PI' + '.npz', allow_pickle=True)['arr_0'])
 
-if args.topo == 'witptb':
-    witness_complex_feat = torch.FloatTensor(np.random.rand(1,50,50)) #torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
+# if args.topo == 'witptb':
+if args.topo == 'global': # load Global PI computed on the perturbed Adj matrix.
+    # witness_complex_feat = torch.FloatTensor(np.random.rand(1,50,50)) #torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
+    witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
     print('shape of local PI representation: ',witness_complex_feat.shape)
 
-if args.topo == 'witptb_local':
+elif args.topo == 'local': # Load Local PI computed on the perturbed Adj matrix.
     # local_witness_complex_feat => Shape (#nodes x 50 x 50)
-    local_witness_complex_feat_ = np.random.rand(2485, 50, 50) # torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_localPI' + '.npz', allow_pickle=True)['arr_0'])
-    local_witness_complex_feat_ = np.expand_dims(local_witness_complex_feat_, axis=1)  # (#nodes, 1, pi_dim, pi_dim)
+    tmp = np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_localPI' + '.npz', allow_pickle=True)['arr_0']
+    # print('tmp.shape: ',tmp.shape)
+    # local_witness_complex_feat_ = np.random.rand(2485, 50, 50) # torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_localPI' + '.npz', allow_pickle=True)['arr_0'])
+    local_witness_complex_feat_ = np.expand_dims(tmp, axis=1)  # (#nodes, 1, pi_dim, pi_dim)
     local_witness_complex_feat = torch.FloatTensor(local_witness_complex_feat_)
     print('shape of local PI representation: ',local_witness_complex_feat.shape) # (#nodes, 1, pi_dim, pi_dim)
+else:
+    raise ValueError("Wrong args.topo")
 
-
-topo_type = 'local' # 'local', 'global'
-method = 'transformer' # resnet, cnn, transformer
+topo_type = args.topo # 'local', 'global'
+method = args.method
 aggregation_method = 'weighted_sum' # einsum, weighted_sum, attention
 
 if topo_type == 'global':

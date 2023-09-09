@@ -1,0 +1,17 @@
+Experiment List and Commands to run the experiments
+===================================================
+## Expt 1: Robustness test 
+(A) Global PI
+-- Models 
+    (1) 2-layer GCN + CNN 
+    => python witcompnn_main.py --seed 1 --epoch 1 --method cnn --topo global
+    (2) ..
+
+(B) Local PI 
+-- Models 
+    (1) 2-layer GCN + CNN
+    => python witcompnn_main.py --seed 1 --epoch 500 --method cnn
+    (2) 2-layer GCN + Resnet 
+    => python witcompnn_main.py --seed 1 --epoch 500 --method resnet
+    (3) 2-layer GCN + Transformer 
+    => python witcompnn_main.py --seed 1 --epoch 500 --method transformer
