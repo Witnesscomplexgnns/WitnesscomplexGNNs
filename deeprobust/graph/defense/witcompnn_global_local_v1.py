@@ -10,6 +10,39 @@ from copy import deepcopy
 from sklearn.metrics import f1_score
 import torchvision.models as models
 import numpy as np
+from deeprobust.graph.defense.resnet import ResNet50, ResNet101, ResNet152
+from sklearn.metrics.pairwise import cosine_similarity,euclidean_distances
+import gudhi as gd
+
+def topo_loss(PD, p, q):
+    new_PD = PD[:-1,:]
+    start, end = new_PD[:,0], new_PD[:,1]
+    lengths = end - start
+    means = (end+start)/2
+    lengths = torch.FloatTensor(lengths)
+    means = torch.FloatTensor(means)
+    output = torch.sum(torch.mul(torch.pow(lengths, p), torch.pow(means, q)))
+    return output
+
+class CNN(nn.Module):
+    def __init__(self, dim_hidden, dim_out):
+        super(CNN, self).__init__()
+        self.dim_out = dim_out
+        self.features = nn.Sequential(
+            nn.Conv2d(1, dim_hidden, kernel_size=3, stride=2), #channel of witness_complex_topo is 1
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(dim_hidden, dim_out, kernel_size=3, stride=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
+        self.maxpool = nn.MaxPool2d(2, 2)
+
+    def forward(self, witness_complex_topo):
+        feature = self.features(witness_complex_topo)
+        feature = self.maxpool(feature)
+        feature = feature.view(-1, self.dim_out) #B, dim_out
+        return feature
 
 class Attention(nn.Module):
     def __init__(self, in_size, hidden_size=32):
@@ -25,26 +58,6 @@ class Attention(nn.Module):
         w = self.project(z)
         beta = torch.softmax(w, dim=1)
         return (beta * z).sum(1), beta
-
-class CNN(nn.Module):
-    def __init__(self, dim_hidden, dim_out):
-        super(CNN, self).__init__()
-        self.dim_out = dim_out
-        self.features = nn.Sequential(
-            nn.Conv2d(1, dim_hidden, kernel_size=2, stride=2), #channel of witness_complex_topo is 1
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.Conv2d(dim_hidden, dim_out, kernel_size=2, stride=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-        )
-        self.maxpool = nn.MaxPool2d(2, 2)
-
-    def forward(self, witness_complex_topo):
-        feature = self.features(witness_complex_topo)
-        feature = self.maxpool(feature)
-        feature = feature.view(-1, self.dim_out) #B, dim_out - here B = 1
-        return feature
 
 class GraphConvolution(Module):
     """Simple GCN layer, similar to https://github.com/tkipf/pygcn
@@ -86,20 +99,21 @@ class GraphConvolution(Module):
                + str(self.out_features) + ')'
 
 
-class LWitCompNN_V2(nn.Module):
+class CWitCompNN_V1(nn.Module):
     """ 2 Layer Graph Convolutional Network + witness complex-based layer
     """
     def __init__(self, nfeat, nhid, nclass, dropout=0.5, lr=0.01, weight_decay=5e-4,
-            with_relu=True, with_bias=True, device=None, alpha = 0.5, beta = 0.5, aggregation_method = 'attention'):
+            with_relu=True, with_bias=True, device=None, alpha = 0.8, beta = 0.1, gamma = 0.1, lambda_coeff = 0.001, aggregation_method = 'attention'):
 
-        super(LWitCompNN_V2, self).__init__()
+        super(CWitCompNN_V1, self).__init__()
 
         assert device is not None, "Please specify 'device'!"
         self.device = device
         self.nfeat = nfeat
         self.hidden_sizes = [nhid]
         self.nclass = nclass
-        self.cnn = CNN(dim_hidden=32, dim_out = nhid)
+        self.gcnn = CNN(64, nhid)
+        self.lcnn = ResNet50(num_classes = nhid) # or ResNet101, ResNet152
         self.attention = Attention(nhid)
         self.gc1 = GraphConvolution(nfeat, nhid, with_bias=with_bias)
         self.gc2 = GraphConvolution(nhid, nclass, with_bias=with_bias)
@@ -119,28 +133,47 @@ class LWitCompNN_V2(nn.Module):
         self.agg = aggregation_method
         self.alpha = alpha
         self.beta = beta
+        self.gamma = gamma
+        self.lambda_coeff = lambda_coeff
 
-    def forward(self, x, adj, witness_complex_feat):
+
+    def forward(self, x, adj, global_witness_complex_feat, local_witness_complex_feat):
         if self.with_relu:
             x = F.relu(self.gc1(x, adj))
         else:
             x = self.gc1(x, adj)
 
-        witness_comp_topo = self.cnn(witness_complex_feat)
-        # x and witness_comp_topo have the same size
+        local_witness_comp_topo = self.lcnn(local_witness_complex_feat)
+        global_witness_comp_topo = self.gcnn(global_witness_complex_feat)
 
+        sim_matrix = cosine_similarity(X=local_witness_comp_topo.cpu().detach().numpy(),
+                                       Y=local_witness_comp_topo.cpu().detach().numpy())
+        skeleton_protein0 = gd.RipsComplex(
+            distance_matrix=sim_matrix,
+            max_edge_length=1.0
+        )
+
+        Rips_simplex_tree_protein0 = skeleton_protein0.create_simplex_tree(max_dimension=1)
+        BarCodes_Rips0 = Rips_simplex_tree_protein0.persistence()
+        local_witness_comp_topo_pd = Rips_simplex_tree_protein0.persistence_intervals_in_dimension(0)
+        loss_topo = topo_loss(PD=local_witness_comp_topo_pd, p=2, q=1)
+
+        # x and witness_comp_topo have the same size
         if self.agg == 'einsum':
-            x = torch.einsum('nb, nb-> nb', x, witness_comp_topo)
+            global_witness_comp_topo = global_witness_comp_topo.view(global_witness_comp_topo.size(1))
+            x = torch.einsum('nb, b-> nb', x, global_witness_comp_topo)
+            x = torch.einsum('nb, nb-> nb', x, local_witness_comp_topo)
         elif self.agg == 'weighted_sum':
-            x = self.alpha * x + self.beta * witness_comp_topo
+            x = self.alpha * x + self.beta * global_witness_comp_topo + self.gamma * local_witness_comp_topo
         elif self.agg == 'attention':
-            emb = torch.stack([x, witness_comp_topo], dim=1)
+            global_witness_comp_topo = global_witness_comp_topo.view(global_witness_comp_topo.size(1))
+            emb = torch.stack([x, local_witness_comp_topo], dim=1)
             emb, att = self.attention(emb)
-            x = emb
+            x = torch.einsum('nb, b-> nb', emb, global_witness_comp_topo)
 
         x = F.dropout(x, self.dropout, training=self.training)
         x = self.gc2(x, adj)
-        return F.log_softmax(x, dim=1)
+        return F.log_softmax(x, dim=1), loss_topo
 
     def initialize(self):
         """Initialize parameters of GCN.
@@ -148,7 +181,7 @@ class LWitCompNN_V2(nn.Module):
         self.gc1.reset_parameters()
         self.gc2.reset_parameters()
 
-    def fit(self, features, adj, witness_complex_feat, labels, idx_train, idx_val=None, train_iters=200, initialize=True, verbose=False, normalize=True, patience=500, **kwargs):
+    def fit(self, features, adj, global_witness_complex_feat, local_witness_complex_feat, labels, idx_train, idx_val=None, train_iters=200, initialize=True, verbose=False, normalize=True, patience=500, **kwargs):
         self.device = self.gc1.weight.device
         if initialize:
             self.initialize()
@@ -171,7 +204,9 @@ class LWitCompNN_V2(nn.Module):
         self.adj_norm = adj_norm
         self.features = features.to(self.device)
         self.labels = labels
-        self.witness_complex_feat = witness_complex_feat.to(self.device)
+        #self.witness_complex_feat = witness_complex_feat.to(self.device)
+        self.global_witness_complex_feat = global_witness_complex_feat.to(self.device)
+        self.local_witness_complex_feat = local_witness_complex_feat.to(self.device)
 
         if idx_val is None:
             self._train_without_val(labels, idx_train, train_iters, verbose)
@@ -186,15 +221,15 @@ class LWitCompNN_V2(nn.Module):
         optimizer = optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         for i in range(train_iters):
             optimizer.zero_grad()
-            output = self.forward(self.features.to(self.device), self.adj_norm, self.witness_complex_feat.to(self.device))
-            loss_train = F.nll_loss(output[idx_train], labels[idx_train])
+            output, loss_topo = self.forward(self.features.to(self.device), self.adj_norm, self.global_witness_complex_feat.to(self.device), self.local_witness_complex_feat.to(self.device))
+            loss_train = F.nll_loss(output[idx_train], labels[idx_train]) + self.lambda_coeff * loss_topo
             loss_train.backward()
             optimizer.step()
             if verbose and i % 10 == 0:
                 print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
 
         self.eval()
-        output = self.forward(self.features.to(self.device), self.adj_norm, self.witness_complex_feat.to(self.device))
+        output = self.forward(self.features.to(self.device), self.adj_norm, self.global_witness_complex_feat.to(self.device), self.local_witness_complex_feat.to(self.device))
         self.output = output
 
     def _train_with_val(self, labels, idx_train, idx_val, train_iters, verbose):
@@ -208,8 +243,8 @@ class LWitCompNN_V2(nn.Module):
         for i in range(train_iters):
             self.train()
             optimizer.zero_grad()
-            output = self.forward(self.features, self.adj_norm, self.witness_complex_feat)
-            loss_train = F.nll_loss(output[idx_train], labels[idx_train])
+            output, loss_topo = self.forward(self.features, self.adj_norm, self.global_witness_complex_feat, self.local_witness_complex_feat)
+            loss_train = F.nll_loss(output[idx_train], labels[idx_train]) + self.lambda_coeff * loss_topo
             loss_train.backward()
             optimizer.step()
 
@@ -217,7 +252,7 @@ class LWitCompNN_V2(nn.Module):
                 print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
 
             self.eval()
-            output = self.forward(self.features, self.adj_norm, self.witness_complex_feat)
+            output, _ = self.forward(self.features, self.adj_norm, self.global_witness_complex_feat, self.local_witness_complex_feat)
             loss_val = F.nll_loss(output[idx_val], labels[idx_val])
             acc_val = utils.accuracy(output[idx_val], labels[idx_val])
 
@@ -246,8 +281,8 @@ class LWitCompNN_V2(nn.Module):
         for i in range(train_iters):
             self.train()
             optimizer.zero_grad()
-            output = self.forward(self.features, self.adj_norm, self.witness_complex_feat)
-            loss_train = F.nll_loss(output[idx_train], labels[idx_train])
+            output, loss_topo = self.forward(self.features, self.adj_norm, self.global_witness_complex_feat, self.local_witness_complex_feat)
+            loss_train = F.nll_loss(output[idx_train], labels[idx_train]) + self.lambda_coeff * loss_topo
             loss_train.backward()
             optimizer.step()
 
@@ -255,7 +290,7 @@ class LWitCompNN_V2(nn.Module):
                 print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
 
             self.eval()
-            output = self.forward(self.features, self.adj_norm, self.witness_complex_feat)
+            output, _ = self.forward(self.features, self.adj_norm, self.global_witness_complex_feat, self.local_witness_complex_feat)
 
             # def eval_class(output, labels):
             #     preds = output.max(1)[1].type_as(labels)
@@ -288,7 +323,7 @@ class LWitCompNN_V2(nn.Module):
             node testing indices
         """
         self.eval()
-        output = self.predict()
+        output, _ = self.predict()
         # output = self.output
         loss_test = F.nll_loss(output[idx_test], self.labels[idx_test])
         acc_test = utils.accuracy(output[idx_test], self.labels[idx_test])
@@ -317,7 +352,7 @@ class LWitCompNN_V2(nn.Module):
 
         self.eval()
         if features is None and adj is None:
-            return self.forward(self.features, self.adj_norm, self.witness_complex_feat)
+            return self.forward(self.features, self.adj_norm, self.global_witness_complex_feat, self.local_witness_complex_feat)
         else:
             if type(adj) is not torch.Tensor:
                 features, adj = utils.to_tensor(features, adj, device=self.device)
@@ -327,7 +362,7 @@ class LWitCompNN_V2(nn.Module):
                 self.adj_norm = utils.normalize_adj_tensor(adj, sparse=True)
             else:
                 self.adj_norm = utils.normalize_adj_tensor(adj)
-            return self.forward(self.features, self.adj_norm, self.witness_complex_feat)
+            return self.forward(self.features, self.adj_norm, self.global_witness_complex_feat, self.local_witness_complex_feat)
 
 
 

@@ -184,7 +184,7 @@ class LWitCompNN_V3(nn.Module):
             loss_train = F.nll_loss(output[idx_train], labels[idx_train])
             loss_train.backward()
             optimizer.step()
-            if verbose and i % 1 == 0:
+            if verbose and i % 10 == 0:
                 print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
 
         self.eval()
@@ -207,7 +207,7 @@ class LWitCompNN_V3(nn.Module):
             loss_train.backward()
             optimizer.step()
 
-            if verbose and i % 1 == 0:
+            if verbose and i % 10 == 0:
                 print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
 
             self.eval()
@@ -245,7 +245,7 @@ class LWitCompNN_V3(nn.Module):
             loss_train.backward()
             optimizer.step()
 
-            if verbose and i % 1 == 0:
+            if verbose and i % 10 == 0:
                 print('Epoch {}, training loss: {}'.format(i, loss_train.item()))
 
             self.eval()

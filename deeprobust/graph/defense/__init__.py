@@ -4,6 +4,9 @@ from .witcompnn_global import GWitCompNN
 from .witcompnn_local_v1 import LWitCompNN_V1
 from .witcompnn_local_v2 import LWitCompNN_V2
 from .witcompnn_local_v3 import LWitCompNN_V3
+from .witcompnn_global_local_v1 import CWitCompNN_V1
+from .witcompnn_global_local_v2 import CWitCompNN_V2
+from .witcompnn_global_local_v3 import CWitCompNN_V3
 
 from .gcn_preprocess import GCNSVD, GCNJaccard
 from .r_gcn import RGCN, GGCL_F, GGCL_D

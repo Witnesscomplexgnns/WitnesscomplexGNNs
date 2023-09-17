@@ -16,11 +16,13 @@ from utils import load_npz
 from lazywitness import * 
 import argparse 
 import scipy.sparse as sp
+import utils 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
 parser.add_argument('--lm_perc',type=float,default=0.05,help='%nodes as landmarks')
 parser.add_argument('--resolution',type = int, default = 50, help='resolution of PI')
+parser.add_argument('--dataset', type=str, default='cora', choices=['cora','citeseer'], help='dataset')
 args = parser.parse_args()
 
 def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
@@ -81,11 +83,13 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 	return PD
 
 # load dataset
-dataset_name = 'cora'
+dataset_name = args.dataset
+# Computing LW features for perturbed adj matrices
 perturbed_adj = sp.load_npz('data/' + dataset_name + '/' + dataset_name + '_meta_adj_'+str(args.ptb_rate)+'.npz')
-# adj, _, _ = load_npz('data/' + dataset_name + '/' + dataset_name + '.npz')
-# G = nx.from_numpy_matrix(adj.toarray()[:100, :100]) # G is a sub-matrix of the input Adj matrix of CORA
 G = nx.from_numpy_matrix(perturbed_adj.toarray())
+# Computing LW features for unperturbed adj matrix
+# adj, _, _ = utils.load_npz('data/' + dataset_name + '/' + dataset_name + '.npz')
+# G = nx.from_numpy_matrix(adj.toarray())
 dataset_name2 = 'data/' + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate)
 PD = computeLWfeatures(G,dataset_name2, landmarkPerc=args.lm_perc, heuristic = 'degree')
 # resolution_size = 50
