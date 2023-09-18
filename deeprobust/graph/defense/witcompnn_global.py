@@ -21,7 +21,7 @@ class CNN(nn.Module):
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
         )
-        self.maxpool = nn.MaxPool2d(3, 3)
+        self.maxpool = nn.MaxPool2d(2, 2)
 
     def forward(self, witness_complex_topo):
         feature = self.features(witness_complex_topo)
@@ -73,7 +73,7 @@ class GWitCompNN(nn.Module):
     """ 2 Layer Graph Convolutional Network + witness complex-based layer
     """
 
-    def __init__(self, nfeat, nhid, nclass, dropout=0.5, lr=0.01, weight_decay=5e-4,
+    def __init__(self, nfeat, nhid, nclass, dropout=0.5, lr=0.01, weight_decay=5e-4,aggregation_method='einsum',
             with_relu=True, with_bias=True, device=None):
 
         super(GWitCompNN, self).__init__()
@@ -99,6 +99,7 @@ class GWitCompNN(nn.Module):
         self.best_output = None
         self.adj_norm = None
         self.features = None
+        self.agg = aggregation_method
 
     def forward(self, x, adj, witness_complex_feat):
         if self.with_relu:
@@ -106,8 +107,18 @@ class GWitCompNN(nn.Module):
         else:
             x = self.gc1(x, adj)
         witness_comp_topo = self.cnn(witness_complex_feat)
-        witness_comp_topo = witness_comp_topo.view(witness_comp_topo.size(1))
-        x = torch.einsum('nb, b-> nb', x, witness_comp_topo)
+        # witness_comp_topo = witness_comp_topo.view(witness_comp_topo.size(1))
+        # x = torch.einsum('nb, b-> nb', x, witness_comp_topo)
+        if self.agg == 'einsum':
+            witness_comp_topo = witness_comp_topo.view(witness_comp_topo.size(1))
+            x = torch.einsum('nb, b-> nb', x, witness_comp_topo)
+            # x = torch.einsum('nb, nb-> nb', x, witness_comp_topo)
+        elif self.agg == 'weighted_sum':
+            x = 0.7 * x + 0.3 * witness_comp_topo
+        elif self.agg == 'attention':
+            emb = torch.stack([x, witness_comp_topo], dim=1)
+            emb, att = self.attention(emb)
+            x = emb
 
         x = F.dropout(x, self.dropout, training=self.training)
         x = self.gc2(x, adj)

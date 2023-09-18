@@ -13,7 +13,7 @@ import pandas as pd
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=15, help='Random seed.')
-parser.add_argument('--dataset', type=str, default='cora', choices=['cora','citeseer'], help='dataset')
+parser.add_argument('--dataset', type=str, default='cora', choices=['cora','citeseer','pubmed'], help='dataset')
 parser.add_argument('--lr', type=float, default=0.001,  help='learning rate')
 parser.add_argument('--drop_rate', type=float, default=0.5,  help='dropout rate')
 parser.add_argument('--weight_decay', type=float, default=5e-4,  help='weight decay rate')

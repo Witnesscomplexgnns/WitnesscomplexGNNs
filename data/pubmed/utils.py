@@ -12,7 +12,7 @@ def largest_connected_components(adj, n_components=1):
     return nodes_to_keep
 
 def load_npz(file_name, is_sparse=True, require_lcc = True):
-    with np.load(file_name,allow_pickle=True) as loader:
+    with np.load(file_name) as loader:
         # loader = dict(loader)
         if is_sparse:
             adj = sp.csr_matrix((loader['adj_data'], loader['adj_indices'],

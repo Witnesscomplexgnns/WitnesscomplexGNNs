@@ -6,7 +6,7 @@ import urllib.request
 import sys
 import pickle as pkl
 import networkx as nx
-from utils import get_train_val_test, get_train_val_test_gcn
+from .utils import get_train_val_test, get_train_val_test_gcn
 import zipfile
 import json
 

@@ -22,9 +22,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
 parser.add_argument('--lm_perc',type=float,default=0.05,help='%nodes as landmarks')
 parser.add_argument('--resolution',type = int, default = 50, help='resolution of PI')
-parser.add_argument('--dataset', type=str, default='cora', choices=['cora','citeseer'], help='dataset')
+parser.add_argument('--dataset', type=str, default='cora', choices=['cora','citeseer','pubmed','polblogs'], help='dataset')
 args = parser.parse_args()
-
+prefix = 'data/nettack/' # 'data/'
+attack='nettack' #'meta'
 def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 	"""
 	 Computes LW persistence pairs / if pre-computed loads&returns them. 
@@ -85,15 +86,15 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 # load dataset
 dataset_name = args.dataset
 # Computing LW features for perturbed adj matrices
-perturbed_adj = sp.load_npz('data/' + dataset_name + '/' + dataset_name + '_meta_adj_'+str(args.ptb_rate)+'.npz')
+perturbed_adj = sp.load_npz(prefix + dataset_name + '/' + dataset_name + '_'+attack+'_adj_'+str(args.ptb_rate)+'.npz')
 G = nx.from_numpy_matrix(perturbed_adj.toarray())
 # Computing LW features for unperturbed adj matrix
-# adj, _, _ = utils.load_npz('data/' + dataset_name + '/' + dataset_name + '.npz')
+# adj, _, _ = utils.load_npz(prefix + dataset_name + '/' + dataset_name + '.npz')
 # G = nx.from_numpy_matrix(adj.toarray())
-dataset_name2 = 'data/' + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate)
+dataset_name2 = prefix + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate)
 PD = computeLWfeatures(G,dataset_name2, landmarkPerc=args.lm_perc, heuristic = 'degree')
 # resolution_size = 50
 PI = persistence_image(PD, resolution = [args.resolution, args.resolution])
 PI[np.isnan(PI)] = 10**-8
 PI = PI.reshape(1, args.resolution, args.resolution)
-np.savez_compressed('data/' + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate) + '_PI.npz', PI)
+np.savez_compressed(prefix + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate) + '_PI.npz', PI)

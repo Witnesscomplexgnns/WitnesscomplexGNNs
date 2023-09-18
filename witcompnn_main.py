@@ -13,7 +13,7 @@ import pandas as pd
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=15, help='Random seed.')
-parser.add_argument('--dataset', type=str, default='cora', choices=['cora','citeseer'], help='dataset')
+parser.add_argument('--dataset', type=str, default='cora', choices=['cora','citeseer','polblogs','pubmed'], help='dataset')
 parser.add_argument('--lr', type=float, default=0.001,  help='learning rate')
 parser.add_argument('--drop_rate', type=float, default=0.5,  help='dropout rate')
 parser.add_argument('--weight_decay', type=float, default=5e-4,  help='weight decay rate')
@@ -58,7 +58,7 @@ if args.topo == 'witorig':
 elif args.topo == 'global': # load Global PI computed on the perturbed Adj matrix. GWTL
     # witness_complex_feat = torch.FloatTensor(np.random.rand(1,50,50)) #torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
     witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
-    print('shape of local PI representation: ',witness_complex_feat.shape)
+    print('shape of global PI representation: ',witness_complex_feat.shape)
 
 elif args.topo == 'local': # Load Local PI computed on the perturbed Adj matrix. LWTL
     # local_witness_complex_feat => Shape (#nodes x 50 x 50)
@@ -81,26 +81,26 @@ else: # GWTL + LWTL + Topoloss
 
 topo_type = args.topo # 'local', 'global'
 method = args.method
-aggregation_method = 'attention' #'weighted_sum' # einsum, weighted_sum, attention
+aggregation_method = 'attention' # einsum, weighted_sum, attention
 
 if topo_type == 'global':
-    model = GWitCompNN(nfeat=features.shape[1], nhid=16, nclass=int(labels.max()) + 1, dropout=args.drop_rate,  lr=args.lr, weight_decay=args.weight_decay, device=device)
+    model = GWitCompNN(nfeat=features.shape[1], nhid=args.nhid, nclass=int(labels.max()) + 1, dropout=args.drop_rate,  lr=args.lr, weight_decay=args.weight_decay,  aggregation_method = aggregation_method, device=device)
     model = model.to(device)
     model.fit(features, perturbed_adj, witness_complex_feat, labels, idx_train, train_iters=args.epoch, verbose=True)
 elif topo_type == 'local':
     if method == 'resnet':
         print("You are using ResNet now!")
-        model = LWitCompNN_V1(nfeat=features.shape[1], nhid=16, nclass=int(labels.max()) + 1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device, alpha = args.alpha, beta = args.beta, aggregation_method = aggregation_method)
+        model = LWitCompNN_V1(nfeat=features.shape[1], nhid=args.nhid, nclass=int(labels.max()) + 1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device, alpha = args.alpha, beta = args.beta, aggregation_method = aggregation_method)
         model = model.to(device)
         model.fit(features, perturbed_adj, local_witness_complex_feat, labels, idx_train, train_iters=args.epoch,  verbose=True)
     elif method == 'cnn':
         print("You are using CNN now!")
-        model = LWitCompNN_V2(nfeat=features.shape[1], nhid=16, nclass=int(labels.max()) + 1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device, alpha = args.alpha, beta = args.beta, aggregation_method = aggregation_method)
+        model = LWitCompNN_V2(nfeat=features.shape[1], nhid=args.nhid, nclass=int(labels.max()) + 1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device, alpha = args.alpha, beta = args.beta, aggregation_method = aggregation_method)
         model = model.to(device)
         model.fit(features, perturbed_adj, local_witness_complex_feat, labels, idx_train, train_iters=args.epoch, verbose=True)
     elif method == 'transformer':
         print("You are using Transformer now!")
-        model = LWitCompNN_V3(nfeat=features.shape[1], nhid=16, nclass=int(labels.max()) + 1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device, alpha = args.alpha, beta = args.beta, aggregation_method = aggregation_method)
+        model = LWitCompNN_V3(nfeat=features.shape[1], nhid=args.nhid, nclass=int(labels.max()) + 1, dropout=args.drop_rate, lr=args.lr, weight_decay=args.weight_decay, device=device, alpha = args.alpha, beta = args.beta, aggregation_method = aggregation_method)
         model = model.to(device)
         model.fit(features, perturbed_adj, local_witness_complex_feat, labels, idx_train, train_iters=args.epoch, verbose=True)
 else:
@@ -129,14 +129,14 @@ model.eval()
 acc = model.test(idx_test)
 
 output = {'seed':args.seed,'acc':acc}
-csv_name = args.topo+'_'+args.method+'_'+args.dataset + "_" + str(args.ptb_rate) + '.csv'
+csv_name = aggregation_method+"_"+args.topo+'_'+args.method+'_'+args.dataset + "_" + str(args.ptb_rate) + '.csv'
 if os.path.exists(csv_name):
     result_df = pd.read_csv(csv_name)
 else:
     result_df = pd.DataFrame()
 result = pd.concat([result_df, pd.DataFrame(output,index = [0])])
 result.to_csv(csv_name, header=True, index=False)
-print(result.head(10))
+# print(result.head(10))
 print(csv_name)
 print('Mean=> ',result['acc'].mean(),' std => ',result['acc'].std())
 
