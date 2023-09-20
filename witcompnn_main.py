@@ -33,16 +33,18 @@ args = parser.parse_args()
 args.cuda = torch.cuda.is_available()
 device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 # load original data and attacked data
-adj, features, labels = load_npz('data/' + args.dataset + '/' + args.dataset + '.npz')
-f = open('data/' + args.dataset + '/' + args.dataset + '_prognn_splits.json')
+prefix = 'data/nettack/' # 'data/'
+attack='nettack' #'meta'
+adj, features, labels = load_npz(prefix + args.dataset + '/' + args.dataset + '.npz')
+f = open(prefix + args.dataset + '/' + args.dataset + '_prognn_splits.json')
 idx = json.load(f)
 idx_train, idx_val, idx_test = np.array(idx['idx_train']), np.array(idx['idx_val']), np.array(idx['idx_test'])
 if args.ptb_rate == 0:
     print('loading unpurturbed adj')
-    perturbed_adj,_,_ = load_npz('data/' + args.dataset + '/' + args.dataset + '.npz')
+    perturbed_adj,_,_ = load_npz(prefix + args.dataset + '/' + args.dataset + '.npz')
 else:
     print('loading perturbed adj. ')
-    perturbed_adj = sp.load_npz('data/' + args.dataset + '/' + args.dataset + '_meta_adj_'+str(args.ptb_rate)+'.npz')
+    perturbed_adj = sp.load_npz(prefix + args.dataset + '/' + args.dataset + '_'+attack+'_adj_'+str(args.ptb_rate)+'.npz')
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -52,17 +54,17 @@ if args.cuda:
 # Setup WitCompNN Model        
 # load witness complex topological features
 if args.topo == 'witorig':
-    witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_PI' + '.npz', allow_pickle=True)['arr_0'])
+    witness_complex_feat = torch.FloatTensor(np.load(prefix + args.dataset + '/' + args.dataset + '_PI' + '.npz', allow_pickle=True)['arr_0'])
 
 # if args.topo == 'witptb':
 elif args.topo == 'global': # load Global PI computed on the perturbed Adj matrix. GWTL
     # witness_complex_feat = torch.FloatTensor(np.random.rand(1,50,50)) #torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
-    witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
+    witness_complex_feat = torch.FloatTensor(np.load(prefix + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0'])
     print('shape of global PI representation: ',witness_complex_feat.shape)
 
 elif args.topo == 'local': # Load Local PI computed on the perturbed Adj matrix. LWTL
     # local_witness_complex_feat => Shape (#nodes x 50 x 50)
-    tmp = np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_localPI' + '.npz', allow_pickle=True)['arr_0']
+    tmp = np.load(prefix + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_localPI' + '.npz', allow_pickle=True)['arr_0']
     # print('tmp.shape: ',tmp.shape)
     # local_witness_complex_feat_ = np.random.rand(2485, 50, 50) # torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_localPI' + '.npz', allow_pickle=True)['arr_0'])
     local_witness_complex_feat_ = np.expand_dims(tmp, axis=1)  # (#nodes, 1, pi_dim, pi_dim)
@@ -70,8 +72,8 @@ elif args.topo == 'local': # Load Local PI computed on the perturbed Adj matrix.
     print('shape of local PI representation: ',local_witness_complex_feat.shape) # (#nodes, 1, pi_dim, pi_dim)
 else: # GWTL + LWTL + Topoloss
     # for both
-    global_witness_complex_feat = torch.FloatTensor(np.load('data/' + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0']) # torch.FloatTensor(np.random.rand(1, 50, 50))
-    local_witness_complex_feat_ = np.load('data/' + args.dataset + '/' + args.dataset + '_' + str(args.ptb_rate) + '_localPI' + '.npz', allow_pickle=True)['arr_0']
+    global_witness_complex_feat = torch.FloatTensor(np.load(prefix + args.dataset + '/' + args.dataset + '_'+str(args.ptb_rate)+'_PI' + '.npz', allow_pickle=True)['arr_0']) # torch.FloatTensor(np.random.rand(1, 50, 50))
+    local_witness_complex_feat_ = np.load(prefix + args.dataset + '/' + args.dataset + '_' + str(args.ptb_rate) + '_localPI' + '.npz', allow_pickle=True)['arr_0']
     local_witness_complex_feat_ = np.expand_dims(local_witness_complex_feat_, axis=1)  # (#nodes, 1, pi_dim, pi_dim)
     local_witness_complex_feat = torch.FloatTensor(local_witness_complex_feat_)
 
@@ -129,7 +131,7 @@ model.eval()
 acc = model.test(idx_test)
 
 output = {'seed':args.seed,'acc':acc}
-csv_name = aggregation_method+"_"+args.topo+'_'+args.method+'_'+args.dataset + "_" + str(args.ptb_rate) + '.csv'
+csv_name = aggregation_method+"_"+args.topo+'_'+args.method+'_'+args.dataset + "_" + str(args.ptb_rate) + '.'+attack+'.csv'
 if os.path.exists(csv_name):
     result_df = pd.read_csv(csv_name)
 else:
