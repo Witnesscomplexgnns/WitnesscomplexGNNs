@@ -17,15 +17,19 @@ from lazywitness import *
 import argparse 
 import scipy.sparse as sp
 import utils 
-
+from tqdm import tqdm 
 parser = argparse.ArgumentParser()
-parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
+parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate') #0.02 => Pubmed
 parser.add_argument('--lm_perc',type=float,default=0.05,help='%nodes as landmarks')
 parser.add_argument('--resolution',type = int, default = 50, help='resolution of PI')
 parser.add_argument('--dataset', type=str, default='cora', choices=['cora','citeseer','pubmed','polblogs'], help='dataset')
 args = parser.parse_args()
 prefix = 'data/nettack/' # 'data/'
 attack='nettack' #'meta'
+#prefix = 'data/'
+#attack= 'meta'
+#prefix = 'data/pgd/' # 'data/'
+#attack='pgd' #'meta'
 def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 	"""
 	 Computes LW persistence pairs / if pre-computed loads&returns them. 
@@ -39,9 +43,9 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 	else:	
 		L = int(len(G.nodes)*landmarkPerc) # Take top 25% maximal degree nodes as landmarks
 		landmarks,dist_to_cover,cover = getLandmarksbynumL(G, L = L,heuristic=heuristic)
-		# print('len(landmarks) : ',len(landmarks),'\n\r landmark degrees: ',[(u,G.degree(u)) for u in landmarks])
+		print('len(landmarks) : ',len(landmarks))
 		local_pd = [None]*len(G.nodes)
-		for u in cover:
+		for u in tqdm(cover):
 			G_cv = nx.Graph()
 			cv = set(cover[u])
 			for v in cv:
@@ -69,6 +73,7 @@ def computeLWfeatures(G,dataset_name, landmarkPerc=0.25,heuristic = 'degree'):
 				# print('local_pd is none for node : ',i)
 			# print(local_pd[i].shape)
 		DSparse,INF = get_sparse_matrix(G,dist_to_cover,landmarks) # Construct sparse LxL matrix
+		print('ripser call')
 		resultsparse = ripser(DSparse, distance_matrix=True)
 		resultsparse['dgms'][0][resultsparse['dgms'][0] == math.inf] = INF # Replacing INFINITY death with a finite number.
 		PD = resultsparse['dgms'][0] # H0
@@ -89,8 +94,8 @@ dataset_name = args.dataset
 perturbed_adj = sp.load_npz(prefix + dataset_name + '/' + dataset_name + '_'+attack+'_adj_'+str(args.ptb_rate)+'.npz')
 G = nx.from_numpy_matrix(perturbed_adj.toarray())
 # Computing LW features for unperturbed adj matrix
-# adj, _, _ = utils.load_npz(prefix + dataset_name + '/' + dataset_name + '.npz')
-# G = nx.from_numpy_matrix(adj.toarray())
+#adj, _, _ = utils.load_npz(prefix + dataset_name + '/' + dataset_name + '.npz')
+#G = nx.from_numpy_matrix(adj.toarray())
 dataset_name2 = prefix + dataset_name + '/' + dataset_name+"_"+str(args.ptb_rate)
 PD = computeLWfeatures(G,dataset_name2, landmarkPerc=args.lm_perc, heuristic = 'degree')
 # resolution_size = 50
